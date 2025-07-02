@@ -1,0 +1,12 @@
+facebook-sdk
+feedparser
+Pillow
+schedule
+mysql-connector-python
+newspaper3k
+lxml
+lxml-html-clean
+python-dotenv
+langchain-openai
+langchain-community
+openai
