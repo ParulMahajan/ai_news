@@ -1,12 +1,13 @@
 import os
 import sys
 from utils.logger import logger
-from scheduler.run_scheduler import main as scheduler_main
 from dotenv import load_dotenv
+load_dotenv()
+from scheduler.run_scheduler import main as scheduler_main
+
 
 def main():
     try:
-        load_dotenv()
         logger.info("Starting News Feed Application")
         scheduler_main()
 
@@ -20,7 +21,5 @@ def main():
 if __name__ == "__main__":
     # Ensure working directory is project root
     project_root = os.path.dirname(os.path.abspath(__file__))
-
     os.chdir(project_root)
-
     main()

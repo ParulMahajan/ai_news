@@ -109,8 +109,14 @@ def format_post_content(title, summary):
     hashtags = "#AI #ArtificialIntelligence #Tech #Innovation"
     # Add CTA (Call to Action)
     cta = "🔔 Follow us for daily AI updates!"
+
+    fb_link = "https://www.facebook.com/profile.php?id=61575680777885"
+    insta_link = "https://www.instagram.com/ainewsss"
+    # Social media icons with links (emoji + URL)
+    social_links = f"📘 Facebook: {fb_link}\n📸 Instagram: {insta_link}"
+
     separator = "\n \n"
-    return f"{bold_title}{separator}{bold_summary_heading}:\n\n{summary}\n\n{hashtags}\n\n{cta}"
+    return f"{bold_title}{separator}{bold_summary_heading}:\n\n{summary}\n\n{hashtags}\n\n{cta}\n\n{social_links}"
 
 def to_unicode_bold(text):
     bold_map = {chr(i): chr(i + 0x1D400 - 0x41) for i in range(0x41, 0x5A + 1)}  # A-Z

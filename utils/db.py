@@ -1,9 +1,8 @@
 import datetime
 import mysql.connector
-from dotenv import load_dotenv
 import os
+from utils.logger import logger as log
 
-load_dotenv()
 
 # Function to get the MySQL connection
 def get_mysql_connection():
@@ -41,6 +40,15 @@ def save_post_history_to_db(post_id, feed_url,published, connection):
     connection.commit()
     cursor.close()
 
-
+def delete_old_history_from_db():
+    connection = get_mysql_connection()
+    cursor = connection.cursor()
+    four_days_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=4)).strftime('%Y-%m-%d %H:%M:%S')
+    query = "DELETE FROM ai_feeds.post_history WHERE published < %s"
+    cursor.execute(query, (four_days_ago,))
+    connection.commit()
+    cursor.close()
+    connection.close()
+    log.info("Deleted history older than 4 days from post_history table")
 # dd=get_mysql_connection()
 # print(dd)

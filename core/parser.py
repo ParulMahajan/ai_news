@@ -71,17 +71,17 @@ def process_news_feeds():
                 new_post_history.append((entry.id, feed_url, entry.published))
 
                 # generate llm image
-                # image_prompt = post_image.format(summaryData=summary_text, titleData=new_title)
-                # ai_image_url = llm_dalle.run(image_prompt)
+                image_prompt = post_image.format(summaryData=summary_text, titleData=new_title)
+                ai_image_url = llm_dalle.run(image_prompt)
 
-                # if  ai_image_url :
-                #     article_image = ai_image_url
+                if  ai_image_url :
+                    article_image = ai_image_url
 
                 logger.info(f"new_title: {new_title}")
                 logger.info(f"summary: {summary_text}")
                 logger.info(f"imageUrl: {article_image}")
                 result = "test"
-                #result = post_to_social_media(title=new_title, summary=summary_text,image_url=article_image)
+                result = post_to_social_media(title=new_title, summary=summary_text,image_url=article_image)
                 logger.debug(f"Posted to Facebook: {result}")
 
                 #logger.info("\n")

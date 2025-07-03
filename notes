@@ -1,0 +1,10 @@
+
+
+
+
+docker buildx build --platform linux/amd64 --push -t mahajan777/news:latest .
+docker buildx build --platform linux/amd64 --push -t mahajan777/news:latest -f news/Dockerfile .
+
+
+
+docker run -d  --name news --restart always -v /var/log/news:/app/logs --env-file .env   -e TZ=Asia/Bangkok   --memory=500m   --memory-swap=500m   mahajan777/news
