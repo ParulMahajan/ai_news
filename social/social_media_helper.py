@@ -52,6 +52,15 @@ def post_to_social_media(title, summary, image_url):
             logger.error(f"Image compression failed: {str(e)}")
             return None
 
+        fb_profile_link = os.getenv("FB_PROFILE_LINK")
+        ig_profile_link = os.getenv("IG_PROFILE_LINK")
+        ln_profile_link = os.getenv("LN_PROFILE_LINK")
+
+        # Social media icons with links (emoji + URL)
+        fb_link = f"📘 Facebook: {fb_profile_link}"
+        ig_link = f"📸 Instagram: {ig_profile_link}"
+        ln_link = f"🔗 LinkedIn: {ln_profile_link}"
+
         # Create temp file
         with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
             temp_file.write(image_data)
@@ -63,7 +72,7 @@ def post_to_social_media(title, summary, image_url):
             with open(temp_path, 'rb') as image_file:
                 results['facebook'] = graph.put_photo(
                     image=image_file,
-                    message=formatted_message,
+                    message=formatted_message + "\n\n" + ig_link + "\n\n" + ln_link,
                     published=True
                 )
 
@@ -74,7 +83,7 @@ def post_to_social_media(title, summary, image_url):
                     "media",
                     image_url=image_url,  # Use image file directly
                     media_type="IMAGE",
-                    caption=formatted_message[:2200], #title
+                    caption=formatted_message[:2200] + "\n\n" + fb_link + "\n\n" + ln_link, #title
 
                 )
             import time
@@ -87,6 +96,14 @@ def post_to_social_media(title, summary, image_url):
                 )
             else:
                 logger.error("Instagram container creation failed")
+
+            # Post to LinkedIn
+            try:
+                linkedin_post = post_to_linkedin_with_image(formatted_message, fb_link, ig_link, temp_path)
+                if linkedin_post:
+                    results['linkedin'] = linkedin_post
+            except Exception as e:
+                logger.error(f"LinkedIn posting failed: {e}")
 
             return results
 
@@ -110,13 +127,95 @@ def format_post_content(title, summary):
     # Add CTA (Call to Action)
     cta = "🔔 Follow us for daily AI updates!"
 
-    fb_link = "https://www.facebook.com/profile.php?id=61575680777885"
-    insta_link = "https://www.instagram.com/ainewsss"
-    # Social media icons with links (emoji + URL)
-    social_links = f"📘 Facebook: {fb_link}\n📸 Instagram: {insta_link}"
-
     separator = "\n \n"
-    return f"{bold_title}{separator}{bold_summary_heading}:\n\n{summary}\n\n{hashtags}\n\n{cta}\n\n{social_links}"
+    return f"{bold_title}{separator}{bold_summary_heading}:\n\n{summary}\n\n{hashtags}\n\n{cta}"
+
+
+def post_to_linkedin_with_image(formatted_message, fb_link, ig_link, image_path):
+    access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
+    organization_urn = f"urn:li:organization:{os.getenv('LN_PAGE_ID')}"
+
+    headers_auth = {
+        "Authorization": f"Bearer {access_token}",
+        "LinkedIn-Version": "202306",
+    }
+
+    # Step 1: Register the image upload
+    register_upload_url = "https://api.linkedin.com/v2/assets?action=registerUpload"
+    register_body = {
+        "registerUploadRequest": {
+            "recipes": [
+                "urn:li:digitalmediaRecipe:feedshare-image"
+            ],
+            "owner": organization_urn,
+            "serviceRelationships": [
+                {
+                    "relationshipType": "OWNER",
+                    "identifier": "urn:li:userGeneratedContent"
+                }
+            ]
+        }
+    }
+
+    headers_json = {**headers_auth, "Content-Type": "application/json"}
+
+    register_response = requests.post(register_upload_url, headers=headers_json, json=register_body)
+    if register_response.status_code != 200:
+        logger.error(f"Failed to register upload: {register_response.status_code} {register_response.text}")
+        return None
+    register_data = register_response.json()
+    upload_url = register_data['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
+    asset_urn = register_data['value']['asset']
+
+    # Step 2: Upload the image bytes to uploadUrl
+    with open(image_path, 'rb') as f:
+        upload_response = requests.put(upload_url, data=f, headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/octet-stream"})
+    if upload_response.status_code not in (200, 201):
+        logger.error(f"Failed to upload image: {upload_response.status_code} {upload_response.text}")
+        return None
+
+    # Step 3: Create the post referencing the uploaded image asset
+    post_url = "https://api.linkedin.com/rest/posts"
+    post_headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "LinkedIn-Version": "202306",
+    }
+
+    post_body = {
+        "author": organization_urn,
+        "commentary": formatted_message + "\n\n" + fb_link + "\n\n" + ig_link,
+        "visibility": "PUBLIC",
+        "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "targetEntities": [],
+            "thirdPartyDistributionChannels": []
+        },
+        "lifecycleState": "PUBLISHED",
+        "isReshareDisabledByAuthor": False,
+        "content": {
+            "media": [
+                {
+                    "status": "READY",
+                    "description": {
+                        "text": "Image description"
+                    },
+                    "media": asset_urn,
+                    "title": {
+                        "text": "Image Title"
+                    }
+                }
+            ],
+            "mediaType": "IMAGE"
+        }
+    }
+
+    post_response = requests.post(post_url, headers=post_headers, json=post_body)
+    if post_response.status_code == 201:
+        return post_response.json()
+    else:
+        logger.error(f"LinkedIn post failed: {post_response.status_code} {post_response.text}")
+        return None
 
 def to_unicode_bold(text):
     bold_map = {chr(i): chr(i + 0x1D400 - 0x41) for i in range(0x41, 0x5A + 1)}  # A-Z
@@ -155,6 +254,21 @@ def get_permanent_page_token():
         print(f"Error getting page token: {e}")
         return None
 
+def refresh_linkedin_token(refresh_token, client_id, client_secret):
+    url = "https://www.linkedin.com/oauth/v2/accessToken"
+    payload = {
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+        "client_secret": client_secret
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    response = requests.post(url, data=payload, headers=headers)
+    if response.ok:
+        tokens = response.json()
+        return tokens['access_token'], tokens.get('refresh_token', None)
+    else:
+        raise Exception(f"Failed to refresh token: {response.status_code} {response.text}")
 
 def delete_all_posts():
     """Delete all posts from the Facebook page"""
