@@ -4,7 +4,8 @@ import tempfile
 from facebook import GraphAPI, GraphAPIError  # Import GraphAPI directly from facebook module
 from utils.image import compress_image
 from utils.logger import logger
-
+# from dotenv import load_dotenv
+# load_dotenv()
 
 def post_to_social_media(title, summary, image_url):
     access_token = os.getenv("FB_ACCESS_TOKEN")
@@ -99,7 +100,7 @@ def post_to_social_media(title, summary, image_url):
 
             # Post to LinkedIn
             try:
-                linkedin_post = post_to_linkedin_with_image(formatted_message, fb_link, ig_link, temp_path)
+                linkedin_post = post_to_linkedin_with_image(temp_path,formatted_message, fb_link, ig_link)
                 if linkedin_post:
                     results['linkedin'] = linkedin_post
             except Exception as e:
@@ -131,91 +132,81 @@ def format_post_content(title, summary):
     return f"{bold_title}{separator}{bold_summary_heading}:\n\n{summary}\n\n{hashtags}\n\n{cta}"
 
 
-def post_to_linkedin_with_image(formatted_message, fb_link, ig_link, image_path):
-    access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
-    organization_urn = f"urn:li:organization:{os.getenv('LN_PAGE_ID')}"
-
-    headers_auth = {
-        "Authorization": f"Bearer {access_token}",
-        "LinkedIn-Version": "202306",
-    }
-
-    # Step 1: Register the image upload
-    register_upload_url = "https://api.linkedin.com/v2/assets?action=registerUpload"
-    register_body = {
-        "registerUploadRequest": {
-            "recipes": [
-                "urn:li:digitalmediaRecipe:feedshare-image"
-            ],
-            "owner": organization_urn,
-            "serviceRelationships": [
-                {
-                    "relationshipType": "OWNER",
-                    "identifier": "urn:li:userGeneratedContent"
-                }
-            ]
-        }
-    }
-
-    headers_json = {**headers_auth, "Content-Type": "application/json"}
-
-    register_response = requests.post(register_upload_url, headers=headers_json, json=register_body)
-    if register_response.status_code != 200:
-        logger.error(f"Failed to register upload: {register_response.status_code} {register_response.text}")
-        return None
-    register_data = register_response.json()
-    upload_url = register_data['value']['uploadMechanism']['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']['uploadUrl']
-    asset_urn = register_data['value']['asset']
-
-    # Step 2: Upload the image bytes to uploadUrl
-    with open(image_path, 'rb') as f:
-        upload_response = requests.put(upload_url, data=f, headers={"Authorization": f"Bearer {access_token}", "Content-Type": "application/octet-stream"})
-    if upload_response.status_code not in (200, 201):
-        logger.error(f"Failed to upload image: {upload_response.status_code} {upload_response.text}")
-        return None
-
-    # Step 3: Create the post referencing the uploaded image asset
-    post_url = "https://api.linkedin.com/rest/posts"
-    post_headers = {
+def initialize_image_upload(organization_urn, access_token):
+    url = "https://api.linkedin.com/rest/images?action=initializeUpload"
+    headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
-        "LinkedIn-Version": "202306",
+        "LinkedIn-Version": "202506"
     }
+    payload = {
+        "initializeUploadRequest": {
+            "owner": organization_urn
+        }
+    }
+    resp = requests.post(url, headers=headers, json=payload)
+    resp.raise_for_status()
+    return resp.json()["value"]  # contains uploadUrl and image URN
 
-    post_body = {
+def upload_image_bytes(upload_url, image_path, access_token):
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/octet-stream"
+    }
+    with open(image_path, "rb") as f:
+        data = f.read()
+    resp = requests.put(upload_url, headers={"Content-Type": "application/octet-stream"}, data=data)
+    resp.raise_for_status()
+    return resp.status_code == 200 or resp.status_code == 201
+
+def post_linkedin_image_post(organization_urn, access_token, image_urn, alt_text, post_text):
+    url = "https://api.linkedin.com/rest/posts"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+        "LinkedIn-Version": "202506"
+    }
+    payload = {
         "author": organization_urn,
-        "commentary": formatted_message + "\n\n" + fb_link + "\n\n" + ig_link,
+        "commentary": post_text,
         "visibility": "PUBLIC",
         "distribution": {
             "feedDistribution": "MAIN_FEED",
             "targetEntities": [],
             "thirdPartyDistributionChannels": []
         },
-        "lifecycleState": "PUBLISHED",
-        "isReshareDisabledByAuthor": False,
         "content": {
-            "media": [
-                {
-                    "status": "READY",
-                    "description": {
-                        "text": "Image description"
-                    },
-                    "media": asset_urn,
-                    "title": {
-                        "text": "Image Title"
-                    }
-                }
-            ],
-            "mediaType": "IMAGE"
-        }
+            "media": {
+                "id": image_urn,
+                "altText": alt_text
+            }
+        },
+        "lifecycleState": "PUBLISHED",
+        "isReshareDisabledByAuthor": False
     }
+    resp = requests.post(url, headers=headers, json=payload)
+    resp.raise_for_status()
+    return resp
 
-    post_response = requests.post(post_url, headers=post_headers, json=post_body)
-    if post_response.status_code == 201:
-        return post_response.json()
-    else:
-        logger.error(f"LinkedIn post failed: {post_response.status_code} {post_response.text}")
+def post_to_linkedin_with_image(image_path, formatted_message, fb_link, ig_link):
+    access_token = os.getenv("LINKEDIN_ACCESS_TOKEN")
+    organization_urn = f"urn:li:organization:{os.getenv('LN_PAGE_ID')}"
+    post_text = formatted_message + "\n\n" + fb_link + "\n\n" + ig_link
+
+    # 1. Initialize upload
+    init_response = initialize_image_upload(organization_urn, access_token)
+    upload_url = init_response["uploadUrl"]
+    image_urn = init_response["image"]
+
+    # 2. Upload image bytes
+    upload_success = upload_image_bytes(upload_url, image_path, access_token)
+    if not upload_success:
+        logger.error("Failed to upload image bytes")
         return None
+
+    # 3. Post content referencing uploaded image
+    post_response = post_linkedin_image_post(organization_urn, access_token, image_urn, "Image description", post_text)
+    return post_response
 
 def to_unicode_bold(text):
     bold_map = {chr(i): chr(i + 0x1D400 - 0x41) for i in range(0x41, 0x5A + 1)}  # A-Z
@@ -307,6 +298,5 @@ def delete_all_posts():
 
 # permToken = get_permanent_page_token()
 # print(f"Permanent Page Token: {permToken}")
-
 # delete_all_posts()
 
