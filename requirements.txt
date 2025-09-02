@@ -1,6 +1,5 @@
 facebook-sdk
 feedparser
-Pillow
 schedule
 mysql-connector-python
 newspaper3k
@@ -10,3 +9,5 @@ python-dotenv
 langchain-openai
 langchain-community
 openai
+google-genai
+boto3

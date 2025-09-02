@@ -1,6 +1,7 @@
 import datetime
 import mysql.connector
 import os
+from dateutil import parser
 from utils.logger import logger as log
 
 
@@ -33,7 +34,13 @@ def get_post_history_from_db(connection):
 def save_post_history_to_db(post_id, feed_url,published, connection):
 
     # Parse the published string to a datetime object
-    published_dt = datetime.datetime.strptime(published, "%a, %d %b %Y %H:%M:%S %z")
+    #published_dt = datetime.datetime.strptime(published, "%a, %d %b %Y %H:%M:%S %z")
+    # Parse the published string to a datetime object using robust parser
+    try:
+        published_dt = parser.parse(published)
+    except Exception as e:
+        # fallback: use current UTC time if parsing fails
+        published_dt = datetime.datetime.now(datetime.UTC)
 
     cursor = connection.cursor()
     cursor.execute("INSERT INTO ai_feeds.post_history (post_id, feed_url,published) VALUES (%s, %s, %s)", (post_id, feed_url,published_dt))

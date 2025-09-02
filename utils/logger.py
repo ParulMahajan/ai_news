@@ -22,7 +22,7 @@ class ColorFormatter(logging.Formatter):
 
 def setup_logger(
         name='news_app',
-        level=os.getenv('LOG_LEVEL', 'INFO'),
+        level=os.getenv('LOG_LEVEL', 'DEBUG'),
         log_dir='logs',
         max_bytes=10*1024*1024,  # 10MB
         backup_count=5

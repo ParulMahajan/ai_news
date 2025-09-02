@@ -1,5 +1,10 @@
 import io
+from io import BytesIO
 from PIL import Image
+import requests
+import base64
+import os
+from utils.logger import logger
 
 def compress_image(image_data):
     """Compress image only if it exceeds Facebook's 4MB limit"""
