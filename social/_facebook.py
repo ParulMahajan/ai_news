@@ -1,6 +1,7 @@
 from facebook import  GraphAPI,GraphAPIError
 from utils.logger import logger
 import os
+import re
 
 access_token = os.getenv("FB_ACCESS_TOKEN")
 graph = GraphAPI(access_token)
@@ -11,15 +12,24 @@ ig_link = f"📸 Instagram: {ig_profile_link}"
 ln_profile_link = os.getenv("LN_PROFILE_LINK")
 ln_link = f"🔗 LinkedIn: {ln_profile_link}"
 
-def post_to_facebook(temp_path, formatted_message):
+def post_to_facebook(temp_path, title, summary, hashtag):
 
     try:
+        formatted_message = format_post_content(title, summary)
         with open(temp_path, 'rb') as image_file:
             result = graph.put_photo(
                 image=image_file,
-                message=formatted_message + "\n\n" + ig_link + "\n\n" + ln_link,
+                message=formatted_message + "\n\n" + ig_link + "\n\n" + ln_link + "\n\n" + hashtag,
                 published=True
             )
+            post_id = result["post_id"]
+            if post_id:
+                graph.put_object(
+                    parent_object=post_id,
+                    connection_name="comments",
+                    message=summary
+                )
+
             return result
     except GraphAPIError as e:
         logger.error(f"Facebook GraphAPIError error: {str(e)}")
@@ -27,6 +37,16 @@ def post_to_facebook(temp_path, formatted_message):
     except Exception as e:
         logger.error(f"Facebook posting failed: {e}")
 
+def format_post_content(title, summary):
+
+    lines = summary.strip().splitlines()
+    first_summary_point = next(line.strip() for line in lines if line.strip())
+    first_summary_point = re.sub(r'^[^\w]+', '', first_summary_point).strip()
+    comment_text = "For full article details, check the comment section..."
+    # Add CTA (Call to Action)
+    cta = "🔔 Follow us for daily AI updates!"
+    separator = "\n \n"
+    return f"{first_summary_point}\n\n{comment_text}{separator}\n\n{cta}"
 
 def get_long_lived_token():
     """Convert short-lived token to long-lived token"""

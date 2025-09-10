@@ -1,11 +1,7 @@
 import os
-import requests
-
 from client.aws_s3 import upload_image_to_s3
 from utils.logger import logger
 from facebook import  GraphAPI,GraphAPIError
-from dotenv import load_dotenv
-load_dotenv()
 
 instagram_account_id = os.getenv("IG_ACCOUNT_ID")
 
@@ -18,7 +14,7 @@ fb_link = f"📘 Facebook: {fb_profile_link}"
 access_token = os.getenv("FB_ACCESS_TOKEN")
 graph = GraphAPI(access_token)
 
-def post_to_instagram(image_bytes: bytes, formatted_message: str):
+def post_to_instagram(image_bytes: bytes, formatted_message: str, hashtag):
 
 
     #upload image to s3
@@ -34,7 +30,7 @@ def post_to_instagram(image_bytes: bytes, formatted_message: str):
             "media",
             image_url=public_url,
             media_type="IMAGE",
-            caption=formatted_message[:2100] + "\n\n" + fb_link + "\n\n" + ln_link,
+            caption=formatted_message[:2000] + "\n\n" + fb_link + "\n\n" + ln_link + "\n\n" + hashtag,
         )
 
         import time

@@ -11,69 +11,50 @@ ai_title_check = PromptTemplate.from_template(
     )
 )
 
-summary_template = ChatPromptTemplate.from_messages(
-    [
-        SystemMessage(
-            content="You are an AI assistant specializing in summarizing AI technology articles for a tech-savvy audience. "
-                    "Analyze the following content. "
-                    "If it discusses a new innovation or significant development in AI technology by a reputable organization (e.g., OpenAI, Google, Meta,anthropic, Microsoft, AWS or any prominent LLM provider), "
-                    "provide:\n"
-                    "1. A compelling and catchy TITLE suitable for instagram/facebook post.\n"
-                    "2. A SUMMARY highlighting in maximum 3-5 key points(each key point separated by new empty line). Ensure the summary is informative, engaging, and tailored.\n"
-                    "3. An IMAGE_TEXT section:\n"
-                    "   - HEADLINE: a shorter, punchy version of the title (max 10 words).\n"
-                    "   - HIGHLIGHTS: 3–5 bullet-style phrases (max 6 words each) suitable for overlaying on an image.\n"
-                    "   - The text should be short, bold, and impactful, designed to catch attention in a quick scroll.\n\n"
+summary_prompt = ChatPromptTemplate.from_messages([
+    ("system","You are an AI assistant specializing in summarizing AI technology articles for a tech-savvy audience"),
+    ("human","""
+Follow the following instructions and analyze the below mentioned content:
 
-                    "If the content is a job posting, opinion piece, or not related to a notable AI innovation, respond with 'NO'.\n\n"
+If it discusses a new innovation or significant development in AI technology by a reputable organization (e.g., OpenAI, Google, Meta, anthropic, Microsoft, AWS or any prominent LLM provider),
+provide the following:
+1. A compelling and catchy TITLE explaining the article and the suitable for social media post.
+2. A SUMMARY highlighting in maximum 3-5 key points (each key point separated by new empty line). Ensure the summary is informative, engaging, and tailored.
+3. Hashtags: Generate relevant 2-4 hashtags related to AI technology, organization etc. mentioned in the article, ensuring they are popular and widely used on social media platforms.
+4. Highlight points(bullet-style phrases, max 6-8 words each) for each of the summary points, suitable for overlaying as infographic elements on the image. The text should be short, bold, and impactful, designed to catch attention in a quick scroll. For the highlights field, output them as a numbered list. 
+Each item must:
+- start with the number and a period (e.g., 1. 2. 3.)
+- wrap the text in double quotes (" ")
 
-                    "Strictly Format the response as:"
-                    "TITLE: <new title>\n"
-                    "||| \n"
-                    "SUMMARY:\n"
-                    "<summary points>\n"
-                    "||| \n"
-                    "IMAGE_TEXT:\n"
-                    "HEADLINE: <short headline> !!!\n"
-                    "HIGHLIGHTS:\n"
-                    "- <highlight 1>\n"
-                    "- <highlight 2>\n"
-                    "- <highlight 3>\n"
-                    "- <highlight 4>\n"
-                    "- <highlight 5>"
-        ),
-        ("human", "{content}"),
-    ]
-)
+Example:
+1. "AWS targets 20% growth by 2025"
+2. "Anthropic's revenue soared 5x"
 
 
-post_image = PromptTemplate.from_template(
-    template=(
-        """
-Create a high-resolution, realistic portrait image with subtle stylish animations, designed for a professional tech-savvy social media audience. The image should visually represent the essence of the given article’s title and summary in a polished, contemporary style.
+If the content is a job posting, opinion piece, or not related to a notable AI innovation, respond is_ai_post with 'NO'.
 
-Specifications:
-1. **Top 10% Overlay:** A translucent dark overlay with the articl'e title in bold, clean, modern typography (sans-serif). The overlay should blend smoothly with the background but maintain strong readability.
+Content: {content}
+""")
+])
 
-2. **Background:** The background should depict a refined, professional, tech-inspired environment with natural lighting and a polished color palette, adding sophistication without distracting from the main subject.
+# Prompt for generating image instructions dynamically
+create_image_prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are an expert prompt engineer for AI image generation."),
+    ("human", """
+Always include these fixed visual guidelines: 
+- Make sure there are no text mistakes on the image 
+- Dynamic title overlay with bold sans-serif typography 
+- Image background: explaining about the article 
+- Professional infographic cards for foreground highlights. Ensure each is distinct, do not duplicate and accurately transcribed. It should be easily readable. 
+- Strictly focus on Title's and Highlight's text should have correct spelling. 
 
-3. **Foreground Infographic Elements:** The article’s **highlights** will be prominently displayed as large, crystal-clear infographic elements.  
-   - Each highlight should be paired with a simple, professional icon (e.g., book, graduation cap, handshake, AI chip).  
-   - The text must use modern, sharp sans-serif fonts in pure white (or dark over light background) for maximum readability.  
-   - Highlights should be **brief and error-free** (correct spellings: “OpenAI Learning Accelerator Launched”, “500K ChatGPT Licenses Distributed”, “Partnerships with IIT Madras, AICTE”, “Training for AI Literacy”, “Nurturing the Next Generation of Learners”).  
-   - Position highlights evenly across the foreground, with enough spacing to avoid clutter. Each should look like a “callout card” or infographic bubble.
+Your task: 
+1. Read the article title and highlights. 
+2. Reframe the above guidelines into a single professional AI image generation prompt. 
+3. Return only the final image prompt.
 
-4. **Depth of Field:** Subtle depth of field (soft bokeh background) so the portrait and highlight elements remain in crisp focus.
-
-5. **Mood:** The overall mood should be sophisticated, innovative, and professional, reflecting the dynamic nature of technology.
- 
-Article Information:
-
-Title: {headline}\n
-Summary: \n{summary}\n
-Highlights: {highlights}\n"""
-    )
-)
-
-
-
+Article Information
+Title: {title}
+Highlights: {highlights}
+""")
+])
