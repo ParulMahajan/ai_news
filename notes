@@ -5,6 +5,6 @@
 docker buildx build --platform linux/amd64 --push -t mahajan777/news:latest .
 docker buildx build --platform linux/amd64 --push -t mahajan777/news:latest -f news/Dockerfile .
 
-
+mysql -h test.cleo4omyaxnj.ap-southeast-1.rds.amazonaws.com -P 3306 -u root -p
 
 docker run -d  --name news --restart always -v /var/log/news:/app/logs --env-file .env   -e TZ=Asia/Bangkok   --memory=500m   --memory-swap=500m   mahajan777/news
