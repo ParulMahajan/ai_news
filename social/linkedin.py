@@ -77,6 +77,7 @@ def post_linkedin_image_post(organization_urn, image_urn, alt_text, post_text, a
         "Content-Type": "application/json",
         "LinkedIn-Version": "202506"
     }
+    post_text = post_text.replace("(", "（").replace(")", "）")
     payload = {
         "author": organization_urn,
         "commentary": post_text,
