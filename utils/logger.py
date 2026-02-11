@@ -1,7 +1,5 @@
 import logging
 import os
-from datetime import datetime
-from logging.handlers import RotatingFileHandler
 
 class ColorFormatter(logging.Formatter):
     COLORS = {
@@ -10,56 +8,46 @@ class ColorFormatter(logging.Formatter):
         'WARNING': '\033[0;33m',  # Yellow
         'ERROR': '\033[0;31m',    # Red
         'CRITICAL': '\033[0;35m', # Magenta
-        'RESET': '\033[0m'        # Reset
+        'RESET': '\033[0m'
     }
 
     def format(self, record):
-        if isinstance(self.handler, logging.StreamHandler) and not isinstance(self.handler, logging.FileHandler):
-            color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
-            message = super().format(record)
-            return f"{color}{message}{self.COLORS['RESET']}"
-        return super().format(record)
+        message = super().format(record)
+        color = self.COLORS.get(record.levelname, self.COLORS['RESET'])
+        return f"{color}{message}{self.COLORS['RESET']}"
 
-def setup_logger(
-        name='news_app',
-        level=os.getenv('LOG_LEVEL', 'DEBUG'),
-        log_dir='logs',
-        max_bytes=10*1024*1024,  # 10MB
-        backup_count=5
-):
-    os.makedirs(log_dir, exist_ok=True)
+def _is_running_in_lambda():
+    return (
+            'AWS_LAMBDA_FUNCTION_NAME' in os.environ
+            or 'LAMBDA_TASK_ROOT' in os.environ
+            or ('AWS_EXECUTION_ENV' in os.environ and os.environ.get('AWS_EXECUTION_ENV', '').startswith('AWS'))
+    )
+
+def _parse_level(level):
+    if isinstance(level, int):
+        return level
+    return getattr(logging, str(level).upper(), logging.DEBUG)
+
+def setup_logger(name='news_app', level=os.getenv('LOG_LEVEL', 'DEBUG')):
+    is_lambda = _is_running_in_lambda()
+    level = _parse_level(level)
 
     logger = logging.getLogger(name)
     logger.setLevel(level)
-
-    # Clear existing handlers
     logger.handlers.clear()
+    logger.propagate = False
 
-    # File handler with rotation
-    log_file = f"{log_dir}/news_app_{datetime.now().strftime('%Y%m%d')}.log"
-    file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=max_bytes,
-        backupCount=backup_count
-    )
-    file_handler.setLevel(level)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(level)
 
-    # Console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(level)
+    if is_lambda:
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    else:
+        formatter = ColorFormatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-    # Formatters
-    file_formatter = logging.Formatter('%(asctime)s - %(filename)s - %(levelname)s - %(message)s')
-    color_formatter = ColorFormatter('%(asctime)s - %(filename)s - %(levelname)s - %(message)s')
-
-    file_handler.setFormatter(file_formatter)
-    console_handler.setFormatter(color_formatter)
-    color_formatter.handler = console_handler
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
 
     return logger
 
-# Create and expose logger instance
 logger = setup_logger()

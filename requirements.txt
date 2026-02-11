@@ -8,6 +8,7 @@ lxml-html-clean
 python-dotenv
 langchain-openai
 langchain-community
+langchain-core
 openai
 google-genai
 boto3

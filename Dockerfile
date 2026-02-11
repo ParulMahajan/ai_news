@@ -1,20 +1,21 @@
-FROM python:3.9-slim
+# Use the AWS Lambda Python 3.9 base image
+FROM public.ecr.aws/lambda/python:3.9
 
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get update && apt-get install -y --no-install-recommends\
-    build-essential \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Set the working directory inside the Lambda environment
+WORKDIR ${LAMBDA_TASK_ROOT}
 
-WORKDIR /app
-
+# Copy requirements first for better layer caching
 COPY requirements.txt .
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+# Install build tools and dependencies
+RUN yum install -y gcc rust cargo && \
+    pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    yum remove -y gcc rust cargo && \
+    yum clean all
 
-RUN apt-get purge -y --auto-remove build-essential python3-dev
-
+# Copy your application code (this layer changes most often)
 COPY . .
 
-CMD ["python", "-m", "main"]
+# Set the CMD to your handler
+CMD ["main.lambda_handler"]

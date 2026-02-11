@@ -1,29 +1,29 @@
 import feedparser
-
+import os
+from client.aws_dynamodb import get_feed_urls_from_db, get_post_history_from_db, save_post_history_to_db
 from client.google import generate_image
 from social.social_media_helper import post_to_social_media
 from model.chain import summary_chain, title_check_chain, image_prompt_chain
 
 from client.newspaper3k import fetch_article_content
-from utils.db import get_feed_urls_from_db, get_mysql_connection, get_post_history_from_db, save_post_history_to_db
+
 from utils.logger import logger
 
 
 def process_news_feeds():
-    connection = get_mysql_connection()
 
     # Define a list to collect new post history records
-    new_post_history: list[tuple[str, str, str]] = []
+    new_post_history: list[tuple[str, str, str,bool]] = []
 
-    feed_urls = get_feed_urls_from_db(connection)
-    post_id_history_list = set(get_post_history_from_db(connection))
-
+    feed_urls = get_feed_urls_from_db()
+    post_id_history_list = set(get_post_history_from_db())
+    feed_entries_config = int(os.environ.get('FEED_ENTRIES_LIMIT', 10))
     for feed_url in feed_urls:
         logger.info("\n")
         logger.info(f"Fetching articles from: {feed_url}")
         feed = feedparser.parse(feed_url)
 
-        for entry in feed.entries[:10]:  # Limit to the first 5 entries
+        for entry in feed.entries[:feed_entries_config]:  # Limit to the first 5 entries
             try:
                 logger.info("\n")
                 logger.info(f"Title: {entry.title}")
@@ -39,7 +39,7 @@ def process_news_feeds():
                 is_AI_title = title_check_chain.invoke({"title": entry.title})
                 if str(is_AI_title.content).strip().lower() == "no":
                     logger.debug(f"Skipped: not AI-related")
-                    new_post_history.append((entry.id, feed_url, entry.published))
+                    new_post_history.append((entry.id, feed_url, entry.published,False))
                     continue
 
                 # Fetch article content using Newspaper3k
@@ -48,13 +48,13 @@ def process_news_feeds():
                     article_text = article_content.get('text', '').strip()
                 except Exception as e:
                     logger.error(f"Skipped (download error)")
-                    new_post_history.append((entry.id, feed_url, entry.published))
+                    new_post_history.append((entry.id, feed_url, entry.published,False))
                     continue
 
                 # Skip if article text is too short (e.g., less than 100 chars)
                 if not article_text or len(article_text) < 100:
                     logger.error(f"Skipped (content too short): {entry.link}")
-                    new_post_history.append((entry.id, feed_url, entry.published))
+                    new_post_history.append((entry.id, feed_url, entry.published,False))
                     continue
 
                 # call LLM to generate summary
@@ -62,7 +62,7 @@ def process_news_feeds():
                 # print(f"Summary: {summary.content}")
                 if str(ai.is_ai_post).strip().lower() in ("no","false") :
                     logger.debug(f"Skipped: not AI-related POST")
-                    new_post_history.append((entry.id, feed_url, entry.published))
+                    new_post_history.append((entry.id, feed_url, entry.published,False))
                     continue
 
                 ai_title = ai.title
@@ -77,6 +77,7 @@ def process_news_feeds():
                 image_prompt = image_prompt_chain.invoke({"title":ai_title,"highlights":ai_image_highlights})
                 logger.info(f"\nimage prompt:\n {image_prompt.content}")
 
+
                 # generate llm image
                 image_bytes = generate_image(image_prompt.content)
                 if image_bytes:
@@ -84,13 +85,15 @@ def process_news_feeds():
                     logger.debug(f"Posted to social media : {result}")
 
                     # Save the new post ID to the list, so we can skip it next time
-                    new_post_history.append((entry.id, feed_url, entry.published))
+                    new_post_history.append((entry.id, feed_url, entry.published, True))
+
             except Exception as e:
                 logger.error(f"Error processing feeds: {str(e)}")
 
     # Save the new post history to the database
-    for post_id, feed_url, published in new_post_history:
-        save_post_history_to_db(post_id, feed_url, published, connection)
+    if new_post_history:
+        save_post_history_to_db(new_post_history)
+
 
 if __name__ == "__main__":
     process_news_feeds()
