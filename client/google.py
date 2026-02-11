@@ -2,11 +2,17 @@ from model.llm import  google_client
 from utils.logger import logger
 from PIL import Image
 from io import BytesIO
+import os
 
 def generate_image(prompt: str) -> bytes:
     response = google_client.models.generate_content(
-        model="gemini-2.5-flash-image-preview",
+        model=os.getenv("GOOGLE_AI_MODEL"),
         contents=[prompt],
+        config={
+            "temperature": 0.1,
+            "top_p": 0.0,
+
+        },
     )
 
     for part in response.candidates[0].content.parts:
@@ -16,7 +22,7 @@ def generate_image(prompt: str) -> bytes:
             # Open image from binary data
             ai_image = Image.open(BytesIO(part.inline_data.data))
             # Save locally if needed
-            ai_image.save("generated_image.jpeg")
+            #ai_image.save("generated_image.jpeg")
 
             # Convert PIL Image to raw bytes for direct use
             buf = BytesIO()

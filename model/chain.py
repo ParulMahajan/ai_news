@@ -1,6 +1,6 @@
 from model.llm import llm
 from model.prompt.customPrompt import summary_prompt, ai_title_check, create_image_prompt
-from langchain.chains import LLMChain
+
 
 from request.Response import PostSummary
 

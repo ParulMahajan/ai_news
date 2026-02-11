@@ -5,6 +5,21 @@
 docker buildx build --platform linux/amd64 --push -t mahajan777/news:latest .
 docker buildx build --platform linux/amd64 --push -t mahajan777/news:latest -f news/Dockerfile .
 
+
+
+aws ecr get-login-password --region ap-southeast-1 --profile personal_aws | \
+docker login --username AWS --password-stdin 863518425246.dkr.ecr.ap-southeast-1.amazonaws.com
+
+
+docker buildx build --platform linux/amd64 --push \
+--provenance=false \
+--sbom=false \
+-t 863518425246.dkr.ecr.ap-southeast-1.amazonaws.com/ai/news:latest \
+-f Dockerfile .
+
+AWS_ACCESS_KEY_ID=dummy AWS_SECRET_ACCESS_KEY=dummy aws dynamodb batch-write-item --request-items file:///Users/pmahajan/Desktop/test.json --endpoint-url http://localhost:8000 --region us-west-2
+
+
 mysql -h test.cleo4omyaxnj.ap-southeast-1.rds.amazonaws.com -P 3306 -u root -p
 
 docker run -d  --name news --restart always -v /var/log/news:/app/logs --env-file .env   -e TZ=Asia/Bangkok   --memory=500m   --memory-swap=500m   mahajan777/news
